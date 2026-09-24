@@ -1,0 +1,50 @@
+{
+  "format": "dimer_hf_snapshot",
+  "formatVersion": 1,
+  "modelKey": "owlvit-base-patch32",
+  "modelId": "google/owlvit-base-patch32",
+  "revision": "unpinned",
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 5146,
+      "sha256": null
+    },
+    {
+      "path": "config.json",
+      "bytes": 4418,
+      "sha256": null
+    },
+    {
+      "path": "merges.txt",
+      "bytes": 524619,
+      "sha256": null
+    },
+    {
+      "path": "model.safetensors",
+      "bytes": 612983940,
+      "sha256": null
+    },
+    {
+      "path": "preprocessor_config.json",
+      "bytes": 392,
+      "sha256": null
+    },
+    {
+      "path": "special_tokens_map.json",
+      "bytes": 460,
+      "sha256": null
+    },
+    {
+      "path": "tokenizer_config.json",
+      "bytes": 775,
+      "sha256": null
+    },
+    {
+      "path": "vocab.json",
+      "bytes": 1059962,
+      "sha256": null
+    }
+  ],
+  "totalBytes": 614579712
+}
