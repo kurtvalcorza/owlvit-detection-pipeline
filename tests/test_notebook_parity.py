@@ -63,7 +63,7 @@ def _tagged(notebook: dict) -> list[dict]:
 def test_par1_every_module_is_carried_in_dependency_order(notebook: dict, context: dict) -> None:
     names = [c["metadata"]["dimer"]["embedded_module"] for c in _tagged(notebook)]
     assert names == context["module_rels"], "carried modules differ from the generator's dependency order"
-    assert len(names) == len(TEMPLATE["modules"])
+    assert len(names) == len(context["modules"])
 
 
 def test_par1_each_carried_cell_equals_its_repository_module(notebook: dict, context: dict) -> None:
