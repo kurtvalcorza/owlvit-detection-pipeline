@@ -21,7 +21,7 @@ from typing import Any
 from PIL import Image
 
 MODEL_ID = "google/owlvit-base-patch32"
-MODEL_REVISION = "unpinned"
+MODEL_REVISION = "cbc355fb364588351c5d51c7f74465e8e7ec6f72"
 MODEL_LICENSE = "apache-2.0"
 MODEL_KEY = "owlvit-base-patch32"
 DEFAULT_WEIGHTS_DIR = Path(__file__).resolve().parents[2] / "weights" / MODEL_KEY

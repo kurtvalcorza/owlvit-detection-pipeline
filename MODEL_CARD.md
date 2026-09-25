@@ -18,7 +18,7 @@ date_published_source: "the pinned README's Model Date (May 2022), which matches
 > ⚠️ **Provided for research, training, and evaluation purposes only.** Model weights are redistributed unmodified under their upstream license, which controls your use, including any commercial use or redistribution; the accompanying code and notebooks are released under this repository's license. All of it is supplied **"as is"**, without warranty of any kind, and has not been validated for production, clinical, or safety-critical use. Running the notebooks downloads third-party weights and datasets governed by their own licenses and consumes compute on your own Colab/Kaggle account. To the maximum extent permitted by law, the maintainers of this repository and the DIMER platform accept no liability for any damages arising from their use. Hosting implies no affiliation with or endorsement by the original authors.
 
 > [!IMPORTANT]
-> The upstream snapshot is **not yet pinned**. `MODEL_REVISION` is the sentinel `"unpinned"` and the manifest records no SHA-256 digests. Until `python tools/pin_snapshot.py` records an immutable commit and every file's digest, the package refuses to stage, verify or load the weights, and the tutorial cannot run.
+> The upstream snapshot is pinned to Hub commit `cbc355fb364588351c5d51c7f74465e8e7ec6f72`, and the manifest records every file's SHA-256. No execution with the pinned weights has been recorded yet, so this card claims no measured value for this repository.
 
 ---
 
@@ -40,7 +40,7 @@ No adaptation happens in this repository: there is no training, fine-tuning, in-
 
 What this repository adds to the upstream weights:
 
-- `verify_snapshot` and `stage_missing_files`: manifest checks and staging of the pinned files, both refusing to run while the snapshot is unpinned;
+- `verify_snapshot` and `stage_missing_files`: manifest checks and staging of the pinned files, both refusing to run if `MODEL_REVISION` is ever reset to the `"unpinned"` sentinel;
 - `OwlViTDetectionPipeline.from_pretrained`: loading from the verified directory only, with `trust_remote_code=False` and `local_files_only=True`;
 - `detect`: prompt normalisation (`format_prompts`), image and threshold checks, and score-sorted pixel-space output labelled with the matched phrase;
 - `validate_inputs` and `evaluation_report`: the validation and single-image evaluation stages, and `box_iou`, the overlap primitive;
@@ -170,9 +170,9 @@ The following uses are prohibited even where the model would work:
 ## Immutable provenance
 
 - Model: `google/owlvit-base-patch32`
-- Revision: **not yet pinned** (`MODEL_REVISION = "unpinned"`). `python tools/pin_snapshot.py` resolves the Hub's `main` to a 40-hex commit, downloads every manifest file at that commit, and records each file's SHA-256.
-- Snapshot manifest: `weights/owlvit-base-patch32/dimer-base-manifest.json`, 8 files, `totalBytes` 614579712. The byte sizes are the ones the Hub reported for its `main` branch when this repository was built.
-- `model.safetensors`: 612,983,940 bytes; SHA-256 not yet recorded.
+- Revision: `cbc355fb364588351c5d51c7f74465e8e7ec6f72` (pinned 2026-09-25 by `python tools/pin_snapshot.py`, which resolved the Hub's `main` to this commit, downloaded every manifest file at it, and recorded each file's SHA-256).
+- Snapshot manifest: `weights/owlvit-base-patch32/dimer-base-manifest.json`, 8 files, `totalBytes` 614579712. The byte sizes and digests describe the files at the pinned commit.
+- `model.safetensors`: 612,983,940 bytes; SHA-256 `4dbe0399f0b7d7c8dddf1535a98769cc30743bebc877aea681998c8d984ce52b` (matches the Hub's LFS record).
 - `config.json`: 4,418 bytes; `OwlViTForObjectDetection`, ViT-B/32 image tower at 768×768, text tower with 16 positions, projection 512.
 - `preprocessor_config.json`: 392 bytes; resize to 768×768, `do_center_crop` false, CLIP mean and standard deviation.
 - Tokenizer: `vocab.json` (1,059,962 bytes), `merges.txt` (524,619 bytes), `tokenizer_config.json` (775 bytes), `special_tokens_map.json` (460 bytes); `CLIPTokenizer`, `model_max_length` 16.
