@@ -2,7 +2,7 @@
 
 DIMER pipeline for **OWL-ViT with a ViT-B/32 image encoder** (`google/owlvit-base-patch32`), a CLIP model turned into a detector that finds objects named by free-text phrases. The pipeline loads the checkpoint only from a digest-verified local snapshot and returns pixel-space boxes, each labelled with the phrase it matched and an uncalibrated sigmoid score under a caller-owned threshold. It performs no training.
 
-> **The upstream snapshot is pinned** to Hub commit `cbc355fb364588351c5d51c7f74465e8e7ec6f72` (pinned 2026-09-25). The manifest records every file's byte size and SHA-256, and the LFS digest matched the Hub's record. No execution with the pinned weights is recorded yet (see [Release status](#release-status)).
+> **The upstream snapshot is pinned** to Hub commit `cbc355fb364588351c5d51c7f74465e8e7ec6f72` (pinned 2026-09-25). The manifest records every file's byte size and SHA-256, and the LFS digest matched the Hub's record. Default-path execution recorded on 2026-09-25 (Kaggle T4); REL12 BYOD exercise pending before promotion (see [Release status](#release-status)).
 
 ## Upstream alignment
 
@@ -57,7 +57,7 @@ weights/owlvit-base-patch32/
 
 ## Release status
 
-**Candidate.** The snapshot is pinned (`cbc355f`), but no execution with the pinned weights is recorded. Static checks, unit tests and the tiny-model test do not constitute notebook execution evidence; `docs/release-verification.md` defines the release gate.
+**Candidate.** The snapshot is pinned (`cbc355f`). Default-path execution recorded on 2026-09-25 (Kaggle T4): the exact notebook blob `fff9ff981ddc` (commit `14be73f`) ran top-to-bottom with BYOD off; on the drawn sample scene at threshold 0.1 it found 1 of 3 drawn shapes (`a red circle`, score 0.4487, `box_iou` 0.9671) and missed the black rectangle and the blue triangle; one scene, one runtime. REL12 BYOD exercise pending before promotion: release step 7 has not been run. Static checks, unit tests and the tiny-model test do not constitute notebook execution evidence; `docs/release-verification.md` defines the release gate.
 
 ## Documentation
 

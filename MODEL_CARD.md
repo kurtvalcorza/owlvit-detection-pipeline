@@ -18,7 +18,7 @@ date_published_source: "the pinned README's Model Date (May 2022), which matches
 > ⚠️ **Provided for research, training, and evaluation purposes only.** Model weights are redistributed unmodified under their upstream license, which controls your use, including any commercial use or redistribution; the accompanying code and notebooks are released under this repository's license. All of it is supplied **"as is"**, without warranty of any kind, and has not been validated for production, clinical, or safety-critical use. Running the notebooks downloads third-party weights and datasets governed by their own licenses and consumes compute on your own Colab/Kaggle account. To the maximum extent permitted by law, the maintainers of this repository and the DIMER platform accept no liability for any damages arising from their use. Hosting implies no affiliation with or endorsement by the original authors.
 
 > [!IMPORTANT]
-> The upstream snapshot is pinned to Hub commit `cbc355fb364588351c5d51c7f74465e8e7ec6f72`, and the manifest records every file's SHA-256. No execution with the pinned weights has been recorded yet, so this card claims no measured value for this repository.
+> The upstream snapshot is pinned to Hub commit `cbc355fb364588351c5d51c7f74465e8e7ec6f72`, and the manifest records every file's SHA-256. Default-path execution recorded on 2026-09-25 (Kaggle T4); REL12 BYOD exercise pending before promotion. The measured values under Metrics come from that one run on one drawn scene with three reference boxes, one runtime. They are sanity evidence, not a benchmark.
 
 ---
 
@@ -68,7 +68,8 @@ A user is expected to know the following before relying on the output:
 - a `score` is an uncalibrated sigmoid, and scores for different phrases are not comparable probabilities;
 - results depend on the wording of each phrase, and a phrase longer than 16 CLIP tokens is truncated;
 - there is no non-maximum suppression, so one object can appear as several overlapping boxes at a low threshold;
-- precision, recall and average precision can only be measured on labelled images the user supplies.
+- precision, recall and average precision can only be measured on labelled images the user supplies;
+- plain drawn shapes are outside the training distribution: in the recorded tutorial run only the red circle of three drawn shapes was found at the default threshold 0.1.
 
 ###### Out-of-scope use cases
 
@@ -93,7 +94,7 @@ Resolution, blur, compression, exposure, viewpoint and aspect ratio all change t
 
 ###### Environment
 
-**Operating environment.** Python 3.12 with the pins in `pyproject.toml`: `torch==2.14.0`, `torchvision==0.29.0`, `torchaudio==2.11.0`, `transformers==4.57.6`, `safetensors==0.8.0`, `numpy==2.5.3`, `pillow==11.3.0`, `huggingface-hub==0.36.2`. Computation is float32. The code runs on CPU and uses CUDA automatically when available. No run with the pinned weights has been recorded yet, so no runtime or memory figure is given.
+**Operating environment.** Python 3.12 with the pins in `pyproject.toml`: `torch==2.14.0`, `torchvision==0.29.0`, `torchaudio==2.11.0`, `transformers==4.57.6`, `safetensors==0.8.0`, `numpy==2.5.3`, `pillow==11.3.0`, `huggingface-hub==0.36.2`. Computation is float32. The code runs on CPU and uses CUDA automatically when available. One run with the pinned weights is recorded: Kaggle Tesla T4, 2026-09-25 UTC, torch 2.14.0+cu130 (CUDA 13.0), transformers 4.57.6, `cuda:0`. The whole notebook took 314.8 s wall including installs, one kernel restart and the 613 MB weight download; one `detect` call on the 640×480 sample took 0.53 s. No memory or throughput figure was measured.
 
 **Data environment.** The model assumes photographs of scenes whose objects can be named in a short phrase of the kind found in web captions. Drawn graphics, documents, aerial, medical, thermal and microscopy images are distribution shifts. So are phrases in languages other than English and specialist terminology. When these assumptions fail, the model still returns boxes and scores, and the pipeline reports no signal that anything has shifted.
 
@@ -107,6 +108,13 @@ The pipeline reports no accuracy measure. Each detection carries `score`, the si
 
 Average precision, precision and recall are not implemented, because they need a labelled image set with a phrase vocabulary that matches the prompts. The caller must supply that set. The OWL-ViT paper reports results on LVIS and COCO; those are upstream-reported, and this repository does not reproduce them.
 
+Values measured by this repository (one run on Kaggle Tesla T4, 2026-09-25 UTC; exact notebook blob `fff9ff981ddc`, commit `14be73f`; one pass, no dispersion estimate):
+
+- **Drawn sample scene** (640×480, synthetic, three drawn shapes, phrases `a black rectangle`, `a red circle`, `a blue triangle`, threshold 0.1): **1 detection** — `a red circle`, score 0.4487, same-shape `box_iou` 0.9671 against the drawn box. The black rectangle and the blue triangle were **not detected** (`box_iou` 0.0; the only box is the circle's). So 1 of 3 drawn shapes was found. This is a `sample-sanity` check on one drawn image, not a detection evaluation.
+- **Input validation:** the over-long phrase probe (49 characters) was rejected against `MAX_PROMPT_CHARS` 48.
+
+The BYOD branch was not exercised in this run, and no box count at a lower threshold was recorded.
+
 ###### Decision thresholds
 
 `detect` applies one threshold: a patch's box is kept when the sigmoid of its best image–text logit is at least `threshold`. Taking the best phrase per patch is an implicit argmax over the caller's phrases. The default, `DETECTION_THRESHOLD = 0.1`, is the value in the pinned README's example. It was not tuned or calibrated by this repository, and no acceptance threshold is set anywhere.
@@ -115,7 +123,7 @@ The deployment owns the threshold, and it must be re-set for each prompt set, be
 
 ###### Approaches to uncertainty and variability
 
-No metric value is reported, so there is no estimation procedure and no dispersion. Inference is deterministic on a fixed device and dtype: there is no sampling and no seed. CUDA kernel selection can move scores slightly and reorder near-ties across hardware.
+The only measured values are three `box_iou` values from one image and one run, so there is no estimation procedure and no dispersion. Inference is deterministic on a fixed device and dtype: there is no sampling and no seed. CUDA kernel selection can move scores slightly and reorder near-ties across hardware.
 
 A `score` is uncalibrated. A caller who needs calibrated confidence must fit a calibration map per prompt set on labelled images from the deployment. A caller who needs an uncertainty estimate for a metric must evaluate over many labelled images and resample.
 
@@ -188,7 +196,7 @@ The following uses are prohibited even where the model would work:
 
 ## Verification records
 
-No execution with the pinned weights has been recorded. The offline test suite runs a tiny random-weight OWL-ViT with a toy CLIP vocabulary through the real processor, model and post-processing; that exercises the code path and is not a result about this model. `docs/release-verification.md` holds the release gate and the record table.
+Default-path execution recorded on 2026-09-25 (Kaggle T4): exact notebook blob `fff9ff981ddc` at commit `14be73f`, 314.8 s, 8/8 post-restart code cells, BYOD off; measured values are under Metrics. REL12 BYOD exercise pending before promotion. The offline test suite runs a tiny random-weight OWL-ViT with a toy CLIP vocabulary through the real processor, model and post-processing; that exercises the code path and is not a result about this model. `docs/release-verification.md` holds the release gate and the record table.
 
 ## References
 
