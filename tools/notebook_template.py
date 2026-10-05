@@ -13,6 +13,20 @@ TEMPLATE = {
     "notebook_name": "owlvit_detection_colab.ipynb",
     "profile": "TASK-INFERENCE",
     "mode": "GUIDED",
+    "isolated_runtime": True,
+    "infrastructure_labels": True,
+    # The fleet's uv isolated-environment mechanism (generator /2.2): managed CPython, a
+    # size- and SHA-256-verified uv wheel, and a lock compiled from the pyproject pins with
+    # `uv pip compile pyproject.toml --python-version 3.12 --python-platform x86_64-manylinux_2_28 --generate-hashes
+    # --only-binary :all: -o tutorials/requirements-colab.lock.txt`.
+    "managed_python": "3.12.12",
+    "uv": {
+        "version": "0.12.15",
+        "url": "https://files.pythonhosted.org/packages/1e/fd/432451d732917c49152a291de3ef171aa6b0f1a22d39780fb2c1f085ca4c/uv-0.12.15-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+        "bytes": 20081404,
+        "sha256": "aee9802f46bae436bd91751bb33ddeb379ef1596b5c19df193219d545d244b60",
+    },
+    "lock": "tutorials/requirements-colab.lock.txt",
     "pipeline_class": "OwlViTDetectionPipeline",
     "weights_key": "owlvit-base-patch32",
     "runtime_imports": ["torch", "transformers"],
@@ -55,6 +69,9 @@ TEMPLATE = {
         "contract and the `box_iou`, `validate_inputs` and `evaluation_report` helpers. The default sample is a synthetic "
         "scene drawn in code; the IoU values reported for it are sanity evidence against the boxes you drew, not a benchmark claim."
     ),
+    "guided": {"opening": [(
+        "**Who this notebook is for.** A learner who knows basic Python, has used Colab or Jupyter and has met bounding boxes, and wants to see how an open-vocabulary detector finds objects named by free-text phrases, what its scores and threshold mean, and why a box with a label is not proof that the object is there. The audience is students and practitioners deciding whether text-prompted detection fits their own images; no prior experience with OWL-ViT or CLIP is assumed — each term is explained where it first matters and again in the **Glossary**. CPU is enough; nothing is trained.\n\n**Input → Model → Output.**\n\n| | |\n|---|---|\n| Input | one image (resized to 768 × 768 without padding) and 1–16 free-text phrases; the default is a drawn 640 × 480 scene of a black rectangle, a red disc and a blue triangle |\n| Model | OWL-ViT base/32: a CLIP image tower whose 576 patches each propose one box, a CLIP text tower that embeds each phrase, and a sigmoid score per (box, phrase) |\n| Output | the boxes whose best score reaches the caller-owned threshold, each with its phrase and score (no non-maximum suppression), an annotated image, and an evaluation report that is `sample-sanity` only against boxes you drew yourself |\n\n**How to use this notebook.** Choose any runtime, then **Runtime → Run all**. Run all completes in one pass: Section 1 installs nothing into the notebook's own Python, so no restart is needed (the recorded hosted run of the previous version needed one; this version removes it). Sections 1–3 are **infrastructure** — the isolated environment, the carried module and the verified snapshot — and their cells are collapsed; you may run them without studying them. The learning path starts in Section 4. Form fields (`# @param`) are the only values meant to be edited, and the defaults reproduce the recorded run. Before each principal result the notebook asks you to **Predict**; after it comes a collapsible **Check your reasoning** with a worked answer from the recorded Kaggle T4 run of 25 September 2026. **Troubleshooting**, a **Glossary** and a **Conclusion** template are at the end. Writing your predictions down is optional.\n\n**Roadmap:** 1–3 infrastructure → 4 the drawn scene (or your image) → 5 validation and a deliberate refusal *(core concept: the input contract)* → 6 detect *(core concept: sigmoid scores, a caller-owned threshold, no NMS)* → 7 the evaluation report and `box_iou` *(evaluation practice)* → 8 export and the annotated image *(engineering)* → conclude."
+    )]},
     "learning_objectives": (
         "install the pinned runtime, read what the carried pipeline module guarantees, resolve and digest-verify the "
         "immutable upstream model revision, draw a synthetic scene with known object boxes, validate the image and the "
@@ -72,7 +89,8 @@ TEMPLATE = {
         "object can surface as several overlapping boxes at a low threshold — the score, not the label, is your only signal."
     ),
     "prerequisites": [
-        "- **Runtime:** a fresh supported runtime (Google Colab or Jupyter, Python 3.12). The default path runs on CPU and uses CUDA automatically when available; inference is float32 on both. Runtimes are not measured in this revision; the cost is dominated by the fixed 768×768 ViT-B/32 pass, not by the input image size. The pinned `torch==2.14.0` install and the ~613 MB checkpoint are the large downloads of the run.",
+        '- **Learner:** basic Python and Colab or Jupyter familiarity; no prior experience with OWL-ViT or CLIP. Sigmoid scores, thresholds, non-maximum suppression, IoU and the evaluation verdicts are explained where they are first used and again in the Glossary.',
+        "- **Runtime:** a fresh supported **Linux x86_64** runtime (Google Colab, Kaggle or Linux Jupyter). Section 1 builds its own Python 3.12.12 environment from a hash-locked list of manylinux wheels, so the Python version of the kernel itself does not matter and nothing is installed into it; a Windows or macOS kernel is not supported. The default path runs on CPU and uses CUDA automatically when available; inference is float32 on both. Runtimes are not measured in this revision; the cost is dominated by the fixed 768×768 ViT-B/32 pass, not by the input image size. The pinned `torch==2.14.0` install and the ~613 MB checkpoint are the large downloads of the run.",
         "- **Knowledge:** basic Python and PIL; what a bounding box in xyxy pixel coordinates is; what intersection-over-union measures; what a sigmoid score is and why it is not a probability.",
         "- **Data:** the default sample is a deterministic 640×480 scene drawn in code (grey background, a black rectangle, a red disc, a blue triangle) with three prompts naming them, so nothing is downloaded and no private data is needed. Optional BYOD upload is gated off by default so the sample path can run top-to-bottom without interaction. Expected BYOD input: one image file decodable by Pillow (PNG/JPEG/WebP and similar), any colour mode, sides between 16 and 4096 px, plus your own comma-separated prompt phrases (1–16 distinct phrases, at most 48 characters each; the upstream convention is `a photo of a <thing>`). Do not upload confidential or restricted data to a hosted notebook environment unless you are authorized to do so. Uploaded inputs remain in the notebook runtime; this pipeline does not send them to a third-party inference API.",
     ],
@@ -108,15 +126,24 @@ TEMPLATE = {
                 "threshold = 0.1  # @param {{type:\"number\"}}\n\n"
                 "if USE_BYOD and BYOD_IMAGE_PATH:\n"
                 "    # Location field (EXE2): read the file directly, no upload dialog.\n"
-                "    image_name = os.path.basename(BYOD_IMAGE_PATH)\n"
-                "    image = Image.open(BYOD_IMAGE_PATH)\n"
+                '    if not os.path.isfile(BYOD_IMAGE_PATH):\n'
+                "        raise FileNotFoundError(f'BYOD_IMAGE_PATH {{BYOD_IMAGE_PATH!r}} does not exist or is not a file (relative paths start at {{os.getcwd()}}).')\n"
+                '    image_name = os.path.basename(BYOD_IMAGE_PATH)\n'
+                '    image = Image.open(BYOD_IMAGE_PATH)\n'
+
                 "    image.load()\n"
-                "if USE_BYOD and not BYOD_IMAGE_PATH:\n"
-                "    from google.colab import files\n"
-                "    uploaded = files.upload()\n"
-                "    image_name = next(iter(uploaded))\n"
-                "    image = Image.open(io.BytesIO(uploaded[image_name]))\n"
-                "    image.load()\n"
+                'if USE_BYOD and not BYOD_IMAGE_PATH:\n'
+                '    try:\n'
+                '        from google.colab import files\n'
+                '    except ImportError:\n'
+                "        raise RuntimeError('USE_BYOD is on but BYOD_IMAGE_PATH is empty, and the upload dialog exists only in Google Colab: copy the image into this runtime and set BYOD_IMAGE_PATH.') from None\n"
+                '    uploaded = files.upload()\n'
+                '    if len(uploaded) != 1:\n'
+                "        raise ValueError(f'Upload exactly one image file (received {{len(uploaded)}} files; a cancelled dialog sends none). Run this cell again.')\n"
+                '    image_name = next(iter(uploaded))\n'
+                '    image = Image.open(io.BytesIO(uploaded[image_name]))\n'
+                '    image.load()\n'
+
                 "if USE_BYOD:\n"
                 "    prompts = [phrase.strip() for phrase in BYOD_PROMPTS.split(',') if phrase.strip()]\n"
                 "    drawn_boxes = None\n"
@@ -149,6 +176,7 @@ TEMPLATE = {
                 "show what rejection looks like, the cell also validates a deliberately over-long phrase and records the "
                 "pipeline's own error message as a finding. Inside the pipeline the image is converted to RGB and resized to "
                 "768×768 without padding by the processor; boxes are mapped back to input pixels, and nothing else is dropped or altered."
+                '\n\n**Predict before running:** the cell also validates a deliberately bad phrase. Which rule will refuse it, and will the model ever see it?'
             ),
             "code": (
                 "import json\n"
@@ -168,6 +196,11 @@ TEMPLATE = {
         },
         {
             "md": (
+                '<details><summary>Check your reasoning</summary>The phrase is longer than `MAX_PROMPT_CHARS` (48 characters; the recorded run used a 49-character phrase), so `validate_inputs` refuses it and the refusal is recorded as a finding in the input manifest — before any model work. The same checks run inside `detect`, so what is accepted here is exactly what the model may receive.</details>'
+            ),
+        },
+        {
+            "md": (
                 "## 6. Detect and read the scores correctly\n\n"
                 "`detect` returns a dict with `detections` — a list of `{{box, label, score}}` **ordered by descending score**, "
                 "`box` in xyxy pixel coordinates of the input, `label` the matched query text — plus `queries`, the threshold "
@@ -182,6 +215,7 @@ TEMPLATE = {
                 "`torch.inference_mode`); CUDA kernel selection can move scores in the third or fourth decimal place and reorder "
                 "near-ties. No run with the pinned weights has been recorded for this checkpoint yet, so look at the boxes and scores "
                 "yourself: they are one observation on one drawn scene, not a calibration point."
+                '\n\n**Predict before running:** the scene holds three clean, high-contrast shapes and three prompts that name them. At threshold 0.1, how many boxes will come back, and will each shape get one?'
             ),
             "code": (
                 "import time\n\n"
@@ -191,6 +225,11 @@ TEMPLATE = {
                 "print({{'n_detections': len(result['detections']), 'queries': result['queries'], 'threshold': result['threshold'], 'device': pipe.device, 'seconds': round(elapsed, 2)}})\n"
                 "for rank, det in enumerate(result['detections'], start=1):\n"
                 "    print(f\"{{rank:>2}}. score {{det['score']:.4f}}  label {{det['label']!r}}  box {{[round(v, 1) for v in det['box']]}}\")"
+            ),
+        },
+        {
+            "md": (
+                '<details><summary>Check your reasoning</summary>Fewer than you might expect. In the recorded run `detect` returned **one** box: `a red circle`, score 0.4487, box [378.1, 137.5, 560.0, 321.7]. The black rectangle and the blue triangle were **not detected** at 0.1. Drawn shapes on grey are far from the photographs the model learned from, and short prompts score lower than the upstream `a photo of …` form: a clean scene is not an easy scene for an open-vocabulary detector.</details>'
             ),
         },
         {
@@ -207,6 +246,7 @@ TEMPLATE = {
                 "exists, the verdict is `not-measurable`, and the report states what would make the task measurable: labelled "
                 "boxes on your own images with a phrase vocabulary matching the prompts. The report is written to "
                 "`outputs/{stem}_evaluation_report.json`."
+                "\n\n**Predict before running:** which verdict will the report give for the drawn scene, and what IoU will the red circle's box reach against the disc you drew?"
             ),
             "code": (
                 "report = evaluation_report(result, drawn_boxes, sample_kind=sample_kind)\n"
@@ -215,6 +255,11 @@ TEMPLATE = {
                 "print(json.dumps(report, indent=2))\n"
                 "if report['verdict'] == 'not-measurable':\n"
                 "    print('No reference boxes exist for this input, so box_iou is not computed; inspect the annotated PNG instead.')"
+            ),
+        },
+        {
+            "md": (
+                "<details><summary>Check your reasoning</summary>`sample-sanity`, because reference boxes exist (you drew them). In the recorded run the red circle's IoU was 0.9671 with a matching label, and the rectangle and triangle scored 0.0 (no box). One drawn scene with three references is geometry sanity evidence — the coordinate mapping works — not a detection benchmark; a BYOD image with no reference boxes gets `not-measurable`.</details>"
             ),
         },
         {
@@ -286,6 +331,30 @@ TEMPLATE = {
         "something that is not in the scene (`a green star`) and see whether anything surfaces; enable `USE_BYOD` with a "
         "photograph, hand-label a few objects and pass them to `evaluation_report` to see the verdict switch to `sample-sanity` — "
         "the first step towards a real precision/recall number.\n\n"
+        '## Troubleshooting\n\n'
+        '- **Section 1 stops with "This notebook needs a Linux x86_64 runtime"** — use Google Colab, Kaggle or a Linux x86_64 Jupyter server.\n'
+        '- **The uv wheel fails its size/SHA-256 check, or a download in Section 1 times out** — run Section 1 again; a complete environment is reused and an incomplete one is finished. If it repeats, `files.pythonhosted.org` or `pypi.org` is blocked or altered.\n'
+        '- **You re-ran Section 1 on its own** — nothing is lost: it keeps the running worker and every variable. After a session restart, run from the top.\n'
+        '- **"The isolated environment\'s Python process exited"** — usually out of memory; restart the session and choose **Run all**.\n'
+        '- **Section 3 reports a size or SHA-256 mismatch, or cannot reach the Hub** — the message names the file. Delete the folder Section 3 prints as `weights_dir` and run Section 3 again.\n'
+        '- **A shape is not detected** — that is a finding, not an error: lower `threshold` (and expect duplicate boxes), or rephrase the prompt (`a photo of a …`).\n'
+        '- **BYOD: "BYOD_IMAGE_PATH … does not exist" / "the upload dialog exists only in Google Colab" / "Upload exactly one image file"** — set `BYOD_IMAGE_PATH` to an image in the runtime (it works on Kaggle and Jupyter); on Colab an empty path opens the dialog, and a cancelled dialog stops with that message.\n'
+        '- **A `ValueError` from `validate_inputs`** — it names the rule: a phrase longer than 48 characters, more than 16 phrases, or an image side outside the ceilings.\n\n'
+        '## Glossary\n\n'
+        '- **Open-vocabulary detection** — detecting objects named by free-text phrases instead of a fixed class list.\n'
+        '- **Patch / box head / class head** — the image is cut into 24 × 24 = 576 patches; each proposes one box (box head) and is scored against every phrase (class head).\n'
+        '- **Sigmoid score** — one (box, phrase) logit squashed into 0..1 on its own; uncalibrated, not a probability that the object is there.\n'
+        "- **Threshold** — the caller-owned cut-off a box's best score must reach; `0.1` follows the upstream example, not a calibration.\n"
+        '- **Non-maximum suppression (NMS)** — merging overlapping boxes; none is applied, so one object can appear as several boxes.\n'
+        '- **IoU** — intersection over union between a detected box and a reference box (1 = identical).\n'
+        '- **`sample-sanity` / `not-measurable`** — the verdict against boxes you drew yourself, and without any reference boxes.\n'
+        '- **Isolated environment** — the separate Python 3.12.12 environment Section 1 builds from the hash lock; every later cell runs there.\n'
+        '- **BYOD** — bring your own data: your image and phrases through the same cells.\n\n'
+        '## Conclusion (your notes)\n\nOptional — fill in from **your** run:\n\n'
+        '- At threshold ___ the model returned ___ box(es); the shapes found were ___ and missed were ___.\n'
+        '- The best IoU was ___ for ___; the verdict was ___.\n'
+        '- Lowering the threshold to ___ changed ___.\n'
+        '- One reason this does not tell me how the model works on my photographs: ___.\n\n'
         "## References\n\n"
         "- Repository README: https://github.com/kurtvalcorza/owlvit-detection-pipeline/blob/main/README.md\n"
         "- Repository model card: https://github.com/kurtvalcorza/owlvit-detection-pipeline/blob/main/MODEL_CARD.md\n"
