@@ -38,13 +38,17 @@ DETECTION_THRESHOLD = 0.1
 MAX_DETECTIONS = 576
 # Input ceilings. The processor resizes the image to 768x768 without preserving its aspect ratio and
 # without padding (preprocessor_config.json: size [768, 768], do_center_crop false), so image cost is
-# bounded; each text query is tokenised by the CLIP tokenizer with model_max_length 16 (padded/truncated),
-# so a phrase longer than that is cut.
+# bounded; each text query is tokenised by the CLIP tokenizer, whose text tower has 16 positions (start and
+# end tokens included). The processor does not truncate a longer query: it fails inside the model with a
+# tensor-shape error, so a loaded pipeline refuses such a phrase before the model runs (review OVT-M2).
 MAX_IMAGE_SIDE = 4096
 MIN_IMAGE_SIDE = 16
 MAX_PROMPTS = 16
 MAX_PROMPT_CHARS = 48
 MAX_TEXT_TOKENS = 16
+# IoU at or above which a reference counts as localised by a box (the conventional AP50 overlap); used only
+# to tell a score miss from a localisation miss in the sanity report, never as a quality claim.
+LOCALISATION_IOU = 0.5
 
 
 def _sha256(path: Path) -> str:
@@ -182,6 +186,23 @@ def format_prompts(prompts: Sequence[str]) -> list[str]:
     return cleaned
 
 
+def check_prompt_tokens(queries: Sequence[str], count_tokens: Callable[[str], int]) -> list[int]:
+    """Return each query's CLIP token count (start and end tokens included); raise ValueError naming the first
+    query over MAX_TEXT_TOKENS. Hyphens, digits and brackets cost extra tokens, so a phrase within
+    MAX_PROMPT_CHARS can still be too long for the text tower (review OVT-M2)."""
+    counts: list[int] = []
+    for query in queries:
+        n_tokens = int(count_tokens(query))
+        if n_tokens > MAX_TEXT_TOKENS:
+            raise ValueError(
+                f"prompt {query!r} is {n_tokens} CLIP tokens (start and end tokens included) > "
+                f"MAX_TEXT_TOKENS {MAX_TEXT_TOKENS}; shorten it "
+                "(hyphens, digits and brackets each cost extra tokens)"
+            )
+        counts.append(n_tokens)
+    return counts
+
+
 def validate_image(image: Any) -> Image.Image:
     if not isinstance(image, Image.Image):
         raise TypeError(f"image must be a PIL.Image.Image, got {type(image).__name__}")
@@ -210,20 +231,26 @@ INPUT_SCHEMA: dict[str, Any] = {
     "preprocessing": (
         "image converted to RGB and resized to 768x768 without preserving the aspect ratio and without "
         "padding (CLIP mean/std); phrases stripped and lower-cased into one CLIP text query each "
-        "(format_prompts, 16-token limit per query); returned boxes are mapped back to input pixels"
+        "(format_prompts); a query over 16 CLIP tokens is refused (check_prompt_tokens), never truncated; "
+        "returned boxes are mapped back to input pixels"
     ),
 }
 
 
-def _check_inputs(image: Any, prompts: Any, threshold: Any) -> tuple[Image.Image, list[str], float]:
+def _check_inputs(
+    image: Any, prompts: Any, threshold: Any, count_tokens: Callable[[str], int] | None = None
+) -> tuple[Image.Image, list[str], float]:
     """Raise TypeError/ValueError naming the first violated ceiling; return the checked request.
 
     ``detect`` and ``validate_inputs`` both route through this function so their acceptance
-    criteria cannot diverge.
+    criteria cannot diverge. With ``count_tokens`` (a loaded pipeline's ``count_tokens``) the
+    16-token text limit is checked too.
     """
     rgb = validate_image(image)
     queries = format_prompts(prompts)
     checked = _check_threshold("threshold", threshold)
+    if count_tokens is not None:
+        check_prompt_tokens(queries, count_tokens)
     return rgb, queries, checked
 
 
@@ -233,13 +260,16 @@ def validate_inputs(
     *,
     threshold: float = DETECTION_THRESHOLD,
     names: Sequence[str] | None = None,
+    count_tokens: Callable[[str], int] | None = None,
 ) -> dict[str, Any]:
     """Validation stage: return the input manifest (schema, observations, request, verdict).
 
     Rejection is reported by raising exactly as ``detect`` would; a caller that wants the finding
-    recorded catches the exception and stores ``str(exc)`` under ``findings``.
+    recorded catches the exception and stores ``str(exc)`` under ``findings``. Pass the loaded
+    pipeline's ``count_tokens`` so the 16-token text limit is checked here, before any model call;
+    without it the manifest records ``prompt_tokens`` as null (not checked).
     """
-    _rgb, queries, checked = _check_inputs(image, prompts, threshold)
+    _rgb, queries, checked = _check_inputs(image, prompts, threshold, count_tokens)
     if names is not None and len(names) != 1:
         raise ValueError("names must have exactly one entry (detect takes one image)")
     return {
@@ -253,6 +283,7 @@ def validate_inputs(
             }
         ],
         "queries": queries,
+        "prompt_tokens": check_prompt_tokens(queries, count_tokens) if count_tokens is not None else None,
         "threshold": checked,
         "verdict": "accepted",
         "findings": [],
@@ -266,12 +297,16 @@ def evaluation_report(
     ground_truth_boxes: Mapping[str, Sequence[float]] | None = None,
     *,
     sample_kind: str = "synthetic",
+    candidates: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Evaluation stage: a machine-readable report even when nothing is measurable.
 
     With ``ground_truth_boxes`` (phrase -> xyxy reference box) the report carries one ``box_iou``
     entry per reference as sample-sanity geometry evidence; without them the verdict is
     ``not-measurable`` and the report says what labelled data would make the task measurable.
+    A reference that no returned box overlaps gets ``matched_label`` null (review OVT-m6). With
+    ``candidates`` (the same request detected at threshold 0) the report adds
+    ``per_reference_best_box`` (see ``best_box_per_reference``).
     """
     detections = list(result["detections"])
     base = {
@@ -304,21 +339,28 @@ def evaluation_report(
     for phrase, box in ground_truth_boxes.items():
         ious = [box_iou(det["box"], box) for det in detections]
         best = max(range(len(ious)), key=ious.__getitem__) if ious else None
-        metrics.append(
-            {
-                "id": "box_iou",
-                "reference": phrase,
-                "value": ious[best] if best is not None else 0.0,
-                "matched_label": detections[best]["label"] if best is not None else None,
-                "label_matches_reference": (detections[best]["label"] == phrase)
-                if best is not None
-                else False,
-                "estimation": "one reference box per phrase on a single scene, no dispersion estimate",
-            }
+        if best is not None and ious[best] <= 0.0:
+            best = None  # no returned box overlaps this reference: nothing was matched to it
+        entry = {
+            "id": "box_iou",
+            "reference": phrase,
+            "value": ious[best] if best is not None else 0.0,
+            "matched_label": detections[best]["label"] if best is not None else None,
+            "label_matches_reference": (detections[best]["label"] == phrase) if best is not None else False,
+            "estimation": "one reference box per phrase on a single scene, no dispersion estimate",
+        }
+        if best is None:
+            entry["note"] = "no overlapping detection at this threshold"
+        metrics.append(entry)
+    extra: dict[str, Any] = {}
+    if candidates is not None:
+        extra["per_reference_best_box"] = best_box_per_reference(
+            candidates, ground_truth_boxes, base["threshold"]
         )
     return {
         **base,
         "metrics": metrics,
+        **extra,
         "verdict": "sample-sanity",
         "reason": (
             f"{len(metrics)} reference box(es) on one tutorial sample; geometry sanity evidence, "
@@ -331,12 +373,77 @@ def evaluation_report(
     }
 
 
+def best_box_per_reference(
+    candidates: Mapping[str, Any],
+    ground_truth_boxes: Mapping[str, Sequence[float]],
+    threshold: float,
+) -> list[dict[str, Any]]:
+    """Tell a score miss from a localisation miss (review OVT-M3).
+
+    ``candidates`` is ``detect`` on the same image and prompts at threshold 0, so every patch's box is
+    returned with its best-matching phrase. For each reference phrase this reports the highest-scoring
+    candidate labelled with that phrase, its score, its IoU with the reference, whether that score reaches
+    ``threshold``, and a reading: found at the threshold, localised but scored under it, or not localised
+    (best box IoU below ``LOCALISATION_IOU``).
+    """
+    rows: list[dict[str, Any]] = []
+    for phrase, box in ground_truth_boxes.items():
+        query = format_prompts([phrase])[0]
+        own = [det for det in candidates["detections"] if det["label"] == query]
+        if not own:
+            rows.append(
+                {
+                    "reference": phrase,
+                    "best_score": None,
+                    "best_box": None,
+                    "best_box_iou": None,
+                    "reaches_threshold": False,
+                    "reading": "no image patch matched this phrase best",
+                }
+            )
+            continue
+        top = max(own, key=lambda det: det["score"])
+        iou = box_iou(top["box"], box)
+        reaches = top["score"] >= threshold
+        if iou < LOCALISATION_IOU:
+            reading = f"not localised: the best-scoring box overlaps the reference at IoU {iou:.2f}"
+        elif reaches:
+            reading = "found: the best-scoring box reaches the threshold and covers the reference"
+        else:
+            reading = "localised but scored under the threshold: a score miss, not a coordinate error"
+        rows.append(
+            {
+                "reference": phrase,
+                "best_score": top["score"],
+                "best_box": top["box"],
+                "best_box_iou": iou,
+                "reaches_threshold": reaches,
+                "reading": reading,
+            }
+        )
+    return rows
+
+
+def _model_weight_digest(root: Path) -> str | None:
+    """The manifest-recorded SHA-256 of the verified weight file (printed by the notebook, review OVT-m4)."""
+    with open(root / MANIFEST_NAME, encoding="utf-8") as fh:
+        manifest = json.load(fh)
+    for entry in manifest["files"]:
+        if entry["path"].endswith(".safetensors"):
+            return entry.get("sha256")
+    return None
+
+
 @dataclass
 class OwlViTDetectionPipeline:
     """Text-prompted (open-vocabulary) object detection over the pinned OWL-ViT base/32 checkpoint."""
 
     _runner: Callable[[Image.Image, list[str], float], list[dict[str, Any]]]
     device: str
+    # CLIP token count of one query (start and end tokens included) from the loaded tokenizer; detect and
+    # validate_inputs refuse a query over MAX_TEXT_TOKENS with it. None for an injected runner.
+    count_tokens: Callable[[str], int] | None = None
+    weight_sha256: str | None = None
 
     @classmethod
     def from_pretrained(
@@ -363,7 +470,9 @@ class OwlViTDetectionPipeline:
         common = {"trust_remote_code": False, "local_files_only": True}
         processor = OwlViTProcessor.from_pretrained(str(root), **common)
         model = OwlViTForObjectDetection.from_pretrained(str(root), **common)
-        return cls.from_components(model, processor, resolved_device)
+        pipe = cls.from_components(model, processor, resolved_device)
+        pipe.weight_sha256 = _model_weight_digest(root)
+        return pipe
 
     @classmethod
     def from_components(cls, model: Any, processor: Any, device: str) -> OwlViTDetectionPipeline:
@@ -373,7 +482,8 @@ class OwlViTDetectionPipeline:
         model = model.to(device).eval()
 
         def runner(image: Image.Image, queries: list[str], threshold: float) -> list[dict]:
-            # One text query per phrase; the CLIP tokenizer pads/truncates each to MAX_TEXT_TOKENS.
+            # One text query per phrase, padded to the longest; detect has already refused any query over
+            # MAX_TEXT_TOKENS, which the processor would not truncate.
             inputs = processor(images=image, text=[queries], return_tensors="pt").to(device)
             with torch.inference_mode():
                 outputs = model(**inputs)
@@ -389,7 +499,14 @@ class OwlViTDetectionPipeline:
                 )
             ]
 
-        return cls(runner, device)
+        tokenizer = getattr(processor, "tokenizer", None)
+        count_tokens = None
+        if tokenizer is not None:
+
+            def count_tokens(query: str) -> int:
+                return len(tokenizer(query, verbose=False)["input_ids"])
+
+        return cls(runner, device, count_tokens)
 
     def detect(
         self,
@@ -399,7 +516,7 @@ class OwlViTDetectionPipeline:
         threshold: float = DETECTION_THRESHOLD,
     ) -> dict[str, Any]:
         """Detect the phrases in `prompts`; boxes are xyxy pixel coordinates in the input image."""
-        rgb, queries, checked = _check_inputs(image, prompts, threshold)
+        rgb, queries, checked = _check_inputs(image, prompts, threshold, self.count_tokens)
         detections = self._runner(rgb, queries, checked)
         if len(detections) > MAX_DETECTIONS:
             raise RuntimeError(

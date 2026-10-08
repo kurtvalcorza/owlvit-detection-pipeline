@@ -66,7 +66,7 @@ A user is expected to know the following before relying on the output:
 
 - a label only says which of the caller's phrases scored best; it does not say the object is present;
 - a `score` is an uncalibrated sigmoid, and scores for different phrases are not comparable probabilities;
-- results depend on the wording of each phrase, and a phrase longer than 16 CLIP tokens is truncated;
+- results depend on the wording of each phrase, and a phrase longer than 16 CLIP tokens (start and end tokens included) is refused before the model runs, with its token count; it is never truncated, and hyphens, digits and brackets cost extra tokens, so a 42-character phrase can already exceed the limit;
 - there is no non-maximum suppression, so one object can appear as several overlapping boxes at a low threshold;
 - precision, recall and average precision can only be measured on labelled images the user supplies;
 - plain drawn shapes are outside the training distribution: in the recorded tutorial run only the red circle of three drawn shapes was found at the default threshold 0.1.
@@ -94,7 +94,7 @@ Resolution, blur, compression, exposure, viewpoint and aspect ratio all change t
 
 ###### Environment
 
-**Operating environment.** Python 3.12 with the pins in `pyproject.toml`: `torch==2.14.0`, `torchvision==0.29.0`, `torchaudio==2.11.0`, `transformers==4.57.6`, `safetensors==0.8.0`, `numpy==2.5.3`, `pillow==11.3.0`, `huggingface-hub==0.36.2`. Computation is float32. The code runs on CPU and uses CUDA automatically when available. One run with the pinned weights is recorded: Kaggle Tesla T4, 2026-09-25 UTC, torch 2.14.0+cu130 (CUDA 13.0), transformers 4.57.6, `cuda:0`. The whole notebook took 314.8 s wall including installs, one kernel restart and the 613 MB weight download; one `detect` call on the 640×480 sample took 0.53 s. No memory or throughput figure was measured.
+**Operating environment.** Python 3.12 with the pins in `pyproject.toml`: `torch==2.14.0`, `torchvision==0.29.0`, `torchaudio==2.11.0`, `transformers==4.57.6`, `safetensors==0.8.0`, `numpy==2.5.3`, `pillow==11.3.0`, `huggingface-hub==0.36.2`. Computation is float32. The code runs on CPU and uses CUDA automatically when available. One run with the pinned weights is recorded: Kaggle Tesla T4, 2026-09-25 UTC, torch 2.14.0+cu130 (CUDA 13.0), transformers 4.57.6, `cuda:0`. The whole notebook took 314.8 s wall including installs, one kernel restart (that version installed into the kernel; the current one builds an isolated environment and needs none) and the 613 MB weight download; one `detect` call on the 640×480 sample took 0.53 s. No memory or throughput figure was measured.
 
 **Data environment.** The model assumes photographs of scenes whose objects can be named in a short phrase of the kind found in web captions. Drawn graphics, documents, aerial, medical, thermal and microscopy images are distribution shifts. So are phrases in languages other than English and specialist terminology. When these assumptions fail, the model still returns boxes and scores, and the pipeline reports no signal that anything has shifted.
 
