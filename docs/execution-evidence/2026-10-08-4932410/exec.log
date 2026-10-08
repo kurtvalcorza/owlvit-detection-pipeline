@@ -1,0 +1,172 @@
+[colab] Parsing notebook '/home/kurt/colab-runs/owlvit-detection-pipeline-4932410-6c286e/owlvit_detection_colab_4932410_colab-cli-t4.ipynb'...
+[colab] Executing cell 1/9 - Infrastructure: build (or reuse) the isolated environment and route later cells to it...
+{'isolated_environment': '/content/dimer_isolated_env_a9d013276dea', 'reused': False, 'isolated_python': '3.12.12', 'kernel_python': '3.13.15', 'locked_packages': 47, 'setup_seconds': 60}
+{'routed_to': '/content/dimer_isolated_env_a9d013276dea/bin/python', 'worker_pid': 2304, 'worker_reused': False}
+[colab] Executing cell 2/9 - Infrastructure: record the runtime...
+{'notebook_source': {'repository': 'owlvit-detection-pipeline', 'repository_revision': 'c3a4452189e32fd851a72f43b0a36a3c7fe9486d', 'embedded_module': 'src/owlvit_detection_pipeline/pipeline.py', 'embedded_modules': ['src/owlvit_detection_pipeline/pipeline.py'], 'module_sha256': 'd10149d2040fe0dfa8b9c27f40d14eea86d839a116429deba9206b1222930bf7', 'generator': 'build_notebook.py/2.2', 'notebook_spec': '2.2'}, 'python': '3.12.12', 'executable': '/content/dimer_isolated_env_a9d013276dea/bin/python', 'torch': '2.14.0+cu130', 'transformers': '4.57.6', 'cuda': True}
+[colab] Executing cell 3/9 - owlvit_detection-08...
+[colab] Executing cell 4/9 - Infrastructure: stage and digest-verify the pinned snapshot, then load the model...
+{'model_id': 'google/owlvit-base-patch32', 'revision': 'cbc355fb364588351c5d51c7f74465e8e7ec6f72', 'license': 'apache-2.0', 'files': 8, 'total_bytes': 614579712}
+{'weights_dir': '/content/weights/owlvit-base-patch32', 'fetched': ['README.md', 'config.json', 'merges.txt', 'model.safetensors', 'preprocessor_config.json', 'special_tokens_map.json', 'tokenizer_config.json', 'vocab.json']}
+{'verified_files': 8, 'revision': 'cbc355fb364588351c5d51c7f74465e8e7ec6f72'}
+{'device': 'cuda:0', 'weights_dir': '/content/weights/owlvit-base-patch32', 'weight_sha256': '4dbe0399f0b7d7c8dddf1535a98769cc30743bebc877aea681998c8d984ce52b'}
+[colab] Executing cell 5/9 - owlvit_detection-12...
+{'sample_kind': 'synthetic', 'name': 'synthetic_scene_640x480.png', 'mode': 'RGB', 'size': (640, 480), 'rgb_sha256': '527ab8a8384ccb8d2cf98030704bc131b7c45c001f08b92b8c5b885dcae00107', 'prompts': ['a black rectangle', 'a red circle', 'a blue triangle'], 'threshold': 0.1, 'drawn_boxes': {'a black rectangle': [80.0, 120.0, 280.0, 360.0], 'a red circle': [380.0, 140.0, 560.0, 320.0], 'a blue triangle': [200.0, 380.0, 360.0, 460.0]}}
+[colab] Executing cell 6/9 - owlvit_detection-14...
+{'ceilings': {'MIN_IMAGE_SIDE': 16, 'MAX_IMAGE_SIDE': 4096, 'MAX_PROMPTS': 16, 'MAX_PROMPT_CHARS': 48, 'MAX_TEXT_TOKENS': 16, 'MAX_DETECTIONS': 576, 'DETECTION_THRESHOLD': 0.1}}
+{
+  "schema": {
+    "input": "one PIL.Image.Image (any mode, converted to RGB) plus 1..MAX_PROMPTS free-text phrases",
+    "image_side_px": [
+      16,
+      4096
+    ],
+    "prompts": [
+      1,
+      16
+    ],
+    "prompt_chars": [
+      1,
+      48
+    ],
+    "prompt_tokens_per_query": [
+      1,
+      16
+    ],
+    "threshold": [
+      0.0,
+      1.0
+    ],
+    "max_detections": 576,
+    "preprocessing": "image converted to RGB and resized to 768x768 without preserving the aspect ratio and without padding (CLIP mean/std); phrases stripped and lower-cased into one CLIP text query each (format_prompts); a query over 16 CLIP tokens is refused (check_prompt_tokens), never truncated; returned boxes are mapped back to input pixels"
+  },
+  "inputs": [
+    {
+      "id": "synthetic_scene_640x480.png",
+      "mode": "RGB",
+      "size": [
+        640,
+        480
+      ],
+      "n_prompts": 3
+    }
+  ],
+  "queries": [
+    "a black rectangle",
+    "a red circle",
+    "a blue triangle"
+  ],
+  "prompt_tokens": [
+    6,
+    5,
+    5
+  ],
+  "threshold": 0.1,
+  "verdict": "accepted",
+  "findings": [
+    {
+      "input": "over-long-prompt-probe",
+      "verdict": "rejected",
+      "message": "prompt 'xxxxxxxxxxxx'... is 49 chars > MAX_PROMPT_CHARS 48"
+    },
+    {
+      "input": "over-16-token-prompt-probe",
+      "verdict": "rejected",
+      "message": "prompt 'a photo of a red-and-white 330-ml soda can' is 18 CLIP tokens (start and end tokens included) > MAX_TEXT_TOKENS 16; shorten it (hyphens, digits and brackets each cost extra tokens)"
+    }
+  ],
+  "model_id": "google/owlvit-base-patch32",
+  "model_revision": "cbc355fb364588351c5d51c7f74465e8e7ec6f72"
+}
+[colab] Executing cell 7/9 - owlvit_detection-17...
+{'n_detections': 1, 'queries': ['a black rectangle', 'a red circle', 'a blue triangle'], 'threshold': 0.1, 'device': 'cuda:0', 'seconds': 0.55}
+ 1. score 0.4487  label 'a red circle'  box [378.1, 137.5, 560.0, 321.7]
+[colab] Executing cell 8/9 - owlvit_detection-20...
+{
+  "task": "zero-shot (open-vocabulary, text-prompted) object detection",
+  "decision_rule": "each of the 576 image patches proposes one box labelled with its best-matching text query; the box survives when the sigmoid of that best image-text logit reaches the threshold; the score is an uncalibrated sigmoid, not a probability, and is not exclusive across queries",
+  "threshold": 0.1,
+  "sample_kind": "synthetic",
+  "n_detections": 1,
+  "baselines": [],
+  "model_id": "google/owlvit-base-patch32",
+  "model_revision": "cbc355fb364588351c5d51c7f74465e8e7ec6f72",
+  "metrics": [
+    {
+      "id": "box_iou",
+      "reference": "a black rectangle",
+      "value": 0.0,
+      "matched_label": null,
+      "label_matches_reference": false,
+      "estimation": "one reference box per phrase on a single scene, no dispersion estimate",
+      "note": "no overlapping detection at this threshold"
+    },
+    {
+      "id": "box_iou",
+      "reference": "a red circle",
+      "value": 0.967078385746309,
+      "matched_label": "a red circle",
+      "label_matches_reference": true,
+      "estimation": "one reference box per phrase on a single scene, no dispersion estimate"
+    },
+    {
+      "id": "box_iou",
+      "reference": "a blue triangle",
+      "value": 0.0,
+      "matched_label": null,
+      "label_matches_reference": false,
+      "estimation": "one reference box per phrase on a single scene, no dispersion estimate",
+      "note": "no overlapping detection at this threshold"
+    }
+  ],
+  "per_reference_best_box": [
+    {
+      "reference": "a black rectangle",
+      "best_score": 0.03733588382601738,
+      "best_box": [
+        72.90396881103516,
+        112.59977722167969,
+        281.90911865234375,
+        361.27630615234375
+      ],
+      "best_box_iou": 0.9235266949422857,
+      "reaches_threshold": false,
+      "reading": "localised but scored under the threshold: a score miss, not a coordinate error"
+    },
+    {
+      "reference": "a red circle",
+      "best_score": 0.44873398542404175,
+      "best_box": [
+        378.12042236328125,
+        137.50570678710938,
+        559.9703979492188,
+        321.68023681640625
+      ],
+      "best_box_iou": 0.967078385746309,
+      "reaches_threshold": true,
+      "reading": "found: the best-scoring box reaches the threshold and covers the reference"
+    },
+    {
+      "reference": "a blue triangle",
+      "best_score": 0.09846502542495728,
+      "best_box": [
+        188.70941162109375,
+        380.69708251953125,
+        371.56951904296875,
+        460.384521484375
+      ],
+      "best_box_iou": 0.864149378770047,
+      "reaches_threshold": false,
+      "reading": "localised but scored under the threshold: a score miss, not a coordinate error"
+    }
+  ],
+  "verdict": "sample-sanity",
+  "reason": "3 reference box(es) on one tutorial sample; geometry sanity evidence, not a detection benchmark",
+  "needs": "a labelled box set from the deployment domain with a matching phrase vocabulary for any mean-average-precision or precision/recall claim"
+}
+'a black rectangle': best score 0.0373, IoU 0.9235, reaches threshold 0.1: False -> localised but scored under the threshold: a score miss, not a coordinate error
+'a red circle': best score 0.4487, IoU 0.9671, reaches threshold 0.1: True -> found: the best-scoring box reaches the threshold and covers the reference
+'a blue triangle': best score 0.0985, IoU 0.8641, reaches threshold 0.1: False -> localised but scored under the threshold: a score miss, not a coordinate error
+[colab] Executing cell 9/9 - owlvit_detection-23...
+['owlvit_detection_annotated.png', 'owlvit_detection_detections.csv', 'owlvit_detection_evaluation_report.json', 'owlvit_detection_input_manifest.json', 'owlvit_detection_result.json']
+[colab] Saving notebook with outputs to '/home/kurt/colab-runs/owlvit-detection-pipeline-4932410-6c286e/owlvit_detection_colab_4932410_colab-cli-t4_output.ipynb'...
