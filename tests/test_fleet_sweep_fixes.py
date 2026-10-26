@@ -241,26 +241,33 @@ def _section4(nb: dict, path: str) -> str:
     return source.replace("BYOD_IMAGE_PATH = ''  # @param", f"BYOD_IMAGE_PATH = {path!r}  # @param", 1)
 
 
-def test_swp_b_byod_path_works_and_missing_path_is_named(nb: dict, tmp_path: Path) -> None:
+def _byod_ns() -> dict:
+    """Section 4 under BYOD also checks the Section 5 request contract (DAT20); a stand-in validator suffices here."""
+    return {"validate_inputs": lambda *a, **k: {}, "pipe": types.SimpleNamespace(count_tokens=len)}
+
+
+def test_swp_b_byod_path_works_and_missing_path_is_named(nb: dict, tmp_path: Path, monkeypatch) -> None:
     """SWP-B: BYOD_IMAGE_PATH reads an image on any runtime; a missing path names the path."""
     from PIL import Image
 
+    monkeypatch.chdir(tmp_path)
     image = tmp_path / "mine.png"
     Image.new("RGB", (32, 24), (1, 2, 3)).save(image)
-    ns: dict = {}
+    ns: dict = _byod_ns()
     with contextlib.redirect_stdout(io.StringIO()):
         exec(compile(_section4(nb, str(image)), "<section 4>", "exec"), ns)
     assert ns["sample_kind"] == "BYOD" and ns["image_name"] == "mine.png"
-    with pytest.raises(FileNotFoundError, match="missing.png"):
-        exec(compile(_section4(nb, str(tmp_path / "missing.png")), "<section 4>", "exec"), {})
+    with pytest.raises(ValueError, match="^missing.png: BYOD_IMAGE_PATH"):  # DAT20: a BYODRefusal
+        exec(compile(_section4(nb, str(tmp_path / "missing.png")), "<section 4>", "exec"), _byod_ns())
 
 
-def test_swp_b_empty_path_off_colab_and_cancelled_upload_are_named(nb: dict, monkeypatch) -> None:
+def test_swp_b_empty_path_off_colab_and_cancelled_upload_are_named(nb: dict, monkeypatch, tmp_path: Path) -> None:
     """SWP-B: an empty path off Colab, or a cancelled Colab upload, stops with a clear message (no StopIteration)."""
+    monkeypatch.chdir(tmp_path)
     monkeypatch.delitem(sys.modules, "google.colab", raising=False)
     monkeypatch.setitem(sys.modules, "google", types.ModuleType("google"))
-    with pytest.raises(RuntimeError, match="only in Google Colab"):
-        exec(compile(_section4(nb, ""), "<section 4>", "exec"), {})
+    with pytest.raises(ValueError, match="only in Google Colab"):
+        exec(compile(_section4(nb, ""), "<section 4>", "exec"), _byod_ns())
     google = types.ModuleType("google")
     colab = types.ModuleType("google.colab")
     files = types.ModuleType("google.colab.files")
@@ -270,4 +277,4 @@ def test_swp_b_empty_path_off_colab_and_cancelled_upload_are_named(nb: dict, mon
     monkeypatch.setitem(sys.modules, "google", google)
     monkeypatch.setitem(sys.modules, "google.colab", colab)
     with pytest.raises(ValueError, match="Upload exactly one image file"):
-        exec(compile(_section4(nb, ""), "<section 4>", "exec"), {})
+        exec(compile(_section4(nb, ""), "<section 4>", "exec"), _byod_ns())
