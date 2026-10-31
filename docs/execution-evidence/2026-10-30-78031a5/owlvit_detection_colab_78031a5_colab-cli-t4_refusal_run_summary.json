@@ -1,0 +1,69 @@
+{
+  "repo": "owlvit-detection-pipeline",
+  "sha": "78031a5bafff7c666cd03a5cfb50e0ee6c03932d",
+  "notebook": "tutorials/owlvit_detection_colab.ipynb",
+  "blob": "907afd38998b3073027fc2657958d1dc158c9184",
+  "gpu": "T4",
+  "session": "suite-owlvit-78031a5-6c28",
+  "started_utc": "2026-10-30T19:19:32+00:00",
+  "runner": "Colab CLI `colab exec -f` on a fresh session (not a browser Run all)",
+  "overrides": [
+    {
+      "name": "USE_BYOD",
+      "from": "False",
+      "to": "True"
+    },
+    {
+      "name": "BYOD_IMAGE_PATH",
+      "from": "''",
+      "to": "'/etc/hostname'"
+    }
+  ],
+  "run_copy_blob": "ca5833558aede85e5df448fe2ccf05a7ef34a23f",
+  "run_copy_sha256": "6934f53d12bd9c11b70c97bef0cb9b9f2b272850d793967ef15dae8ef61904d0",
+  "run_copy_note": "refusal run: the run copy is the committed notebook with the listed assignment overrides, cut immediately after the refusal cell and re-serialised (nbformat layout); input_unchanged compares against that copy",
+  "truncated_after_cell": "owlvit_detection-12",
+  "refusal_cell_ref": "owlvit_detection-12",
+  "refusal_cell_index": 5,
+  "cells_dropped": 12,
+  "code_cells_dropped": 4,
+  "original_sha256": "3538da2fdbf70216aa70608bc9689f763e6e23f7bc08f5636ee3fb5aeb79bf90",
+  "status": "[suite-owlvit-78031a5-6c28] gpu-t4-s-euw4c0-19nv4zgeh431y | Hardware: T4 | Shape: Standard | Variant: GPU | Status: IDLE",
+  "exec_exit_code": 0,
+  "stopped": true,
+  "stop_verified": true,
+  "wall_s": 99.8,
+  "input_unchanged": true,
+  "executed_file": "owlvit_detection_colab_78031a5_colab-cli-t4_output.ipynb",
+  "log_cells": [
+    1,
+    2,
+    3,
+    4,
+    5
+  ],
+  "log_total": 5,
+  "code_cells": 5,
+  "executed_cells": 4,
+  "errors": [
+    {
+      "cell": "owlvit_detection-12",
+      "ename": "IsolatedCellRefusal",
+      "evalue": "hostname: UnidentifiedImageError: cannot identify image file '/etc/hostname'; fix the input and run this cell again (the earlier results of this session and their outputs/ files were removed)."
+    }
+  ],
+  "execution_counts": [],
+  "sequential": null,
+  "executed_sha256": "23706cad19355f44e632393941ab6dc09c98094bb669a19176ba5efd655aff58",
+  "log_sequential_complete": true,
+  "mode": "expect_refusal",
+  "refusal_line": "Refused: hostname: UnidentifiedImageError: cannot identify image file '/etc/hostname'; fix the input and run this cell again (the earlier results of this session and their outputs/ files were removed).",
+  "halting_cell_index": 5,
+  "halting_cell_id": "owlvit_detection-12",
+  "error_cells": [
+    5
+  ],
+  "refusal_fail_reasons": [],
+  "refusal_ok": true,
+  "verdict": "PASS"
+}

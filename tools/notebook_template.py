@@ -108,7 +108,9 @@ TEMPLATE = {
                 "printed for the record. BYOD is optional and disabled by default; when enabled, set `BYOD_IMAGE_PATH` to an image "
                 "file (or leave it empty on Colab to get an upload dialog) and set "
                 "`BYOD_PROMPTS` to the phrases you want found — no reference boxes exist for it, so the evaluation report will be "
-                "`not-measurable`.\n\n"
+                "`not-measurable`. A refused image or request (a missing path, a cancelled upload, a file Pillow cannot read, a "
+                "side or prompt outside the Section 5 ceilings) stops this cell with one line, `Refused: <file>: <reason and fix>`, "
+                "and first removes the earlier run's results and `outputs/` files.\n\n"
                 "The detection threshold is a **caller-owned request parameter**, not a pipeline constant: a patch's box survives "
                 "when the sigmoid of its best image–text logit reaches it. The package default (`DETECTION_THRESHOLD = 0.1`) "
                 "follows the pinned README's usage example, not a calibration; it is exposed here as a form parameter and passed "
@@ -119,35 +121,89 @@ TEMPLATE = {
             "code": (
                 "import hashlib\n"
                 "import io\n"
-                "import os\n\n"
+                "import os\n"
+                "import shutil\n"
+                "from pathlib import Path\n"
+                "\n"
                 "import numpy as np\n"
-                "from PIL import Image, ImageDraw\n\n"
+                "from PIL import Image, ImageDraw\n"
+                "\n"
                 "USE_BYOD = False  # @param {{type:\"boolean\"}}\n"
                 "BYOD_IMAGE_PATH = ''  # @param {{type:\"string\"}}\n"
                 "BYOD_PROMPTS = 'a photo of a cat, a photo of a remote control'  # @param {{type:\"string\"}}\n"
-                "threshold = 0.1  # @param {{type:\"number\"}}\n\n"
-                "if USE_BYOD and BYOD_IMAGE_PATH:\n"
-                "    # Location field (EXE2): read the file directly, no upload dialog.\n"
-                '    if not os.path.isfile(BYOD_IMAGE_PATH):\n'
-                "        raise FileNotFoundError(f'BYOD_IMAGE_PATH {{BYOD_IMAGE_PATH!r}} does not exist or is not a file (relative paths start at {{os.getcwd()}}).')\n"
-                '    image_name = os.path.basename(BYOD_IMAGE_PATH)\n'
-                '    image = Image.open(BYOD_IMAGE_PATH)\n'
-
-                "    image.load()\n"
-                'if USE_BYOD and not BYOD_IMAGE_PATH:\n'
-                '    try:\n'
-                '        from google.colab import files\n'
-                '    except ImportError:\n'
-                "        raise RuntimeError('USE_BYOD is on but BYOD_IMAGE_PATH is empty, and the upload dialog exists only in Google Colab: copy the image into this runtime and set BYOD_IMAGE_PATH.') from None\n"
-                '    uploaded = files.upload()\n'
-                '    if len(uploaded) != 1:\n'
-                "        raise ValueError(f'Upload exactly one image file (received {{len(uploaded)}} files; a cancelled dialog sends none). Run this cell again.')\n"
-                '    image_name = next(iter(uploaded))\n'
-                '    image = Image.open(io.BytesIO(uploaded[image_name]))\n'
-                '    image.load()\n'
-
+                "threshold = 0.1  # @param {{type:\"number\"}}\n"
+                "\n"
+                "class BYODRefusal(ValueError):\n"
+                "    \"\"\"A refused BYOD input: ``BYODRefusal(file_name, reason_and_fix)``.\"\"\"\n"
+                "\n"
+                "    dimer_refusal = True\n"
+                "\n"
+                "    def __init__(self, file_name, reason):\n"
+                "        super().__init__(f\"{{file_name}}: {{reason}}\")\n"
+                "        self.file_name = file_name\n"
+                "        self.reason = reason\n"
+                "\n"
+                "    def _render_traceback_(self):\n"
+                "        return [f\"Refused: {{self}}\"]\n"
+                "\n"
+                "\n"
+                "# What an earlier run of Sections 4-8 left in this session. A refused input removes these results and the\n"
+                "# outputs/ files below (DAT20), so nothing from that run can pass as a result of the refused file.\n"
+                "RUN_RESULT_NAMES = (\n"
+                "    'threshold', 'image_name', 'image', 'uploaded', 'prompts', 'drawn_boxes', 'sample_kind', 'draw', 'image_sha256',\n"
+                "    'input_manifest', 'probe_name', 'probe', 'result', 'elapsed', 'rank', 'det', 'candidates', 'report', 'row',\n"
+                "    'score', 'iou', 'annotated', 'payload', 'writer',\n"
+                ")\n"
+                "RUN_OUTPUTS = (\n"
+                "    'outputs/{stem}_*',\n"
+                ")\n"
+                "\n"
+                "\n"
+                "def refuse_byod(file_name, reason, names=None, outputs=None):\n"
+                "    \"\"\"Remove the earlier run's results and outputs/ files, then stop the cell with one Refused: line naming the file and the fix.\"\"\"\n"
+                "    for name in RUN_RESULT_NAMES if names is None else names:\n"
+                "        globals().pop(name, None)\n"
+                "    for pattern in RUN_OUTPUTS if outputs is None else outputs:\n"
+                "        for path in Path('.').glob(pattern):\n"
+                "            if path.is_dir():\n"
+                "                shutil.rmtree(path, ignore_errors=True)\n"
+                "            else:\n"
+                "                path.unlink()\n"
+                "    reason = str(reason).rstrip('. ')\n"
+                "    if 'again' not in reason:\n"
+                "        reason += '; fix the input and run this cell again'\n"
+                "    raise BYODRefusal(file_name, reason + ' (the earlier results of this session and their outputs/ files were removed).') from None\n"
+                "\n"
+                "\n"
                 "if USE_BYOD:\n"
-                "    prompts = [phrase.strip() for phrase in BYOD_PROMPTS.split(',') if phrase.strip()]\n"
+                "    # DAT20: every problem with your image or prompts (path, upload, decoding, the request contract) stops here as one Refused: line.\n"
+                "    image_name = (os.path.basename(BYOD_IMAGE_PATH.strip()) or BYOD_IMAGE_PATH.strip()) if BYOD_IMAGE_PATH.strip() else '(no file)'\n"
+                "    try:\n"
+                "        if BYOD_IMAGE_PATH:\n"
+                "            # Location field (EXE2): read the file directly, no upload dialog.\n"
+                "            if not os.path.isfile(BYOD_IMAGE_PATH):\n"
+                "                raise BYODRefusal(image_name, f'BYOD_IMAGE_PATH {{BYOD_IMAGE_PATH!r}} does not exist or is not a file (relative paths start at {{os.getcwd()}}).')\n"
+                "            image_name = os.path.basename(BYOD_IMAGE_PATH)\n"
+                "            image = Image.open(BYOD_IMAGE_PATH)\n"
+                "            image.load()\n"
+                "        else:\n"
+                "            try:\n"
+                "                from google.colab import files\n"
+                "            except ImportError:\n"
+                "                raise BYODRefusal('(no file)', 'USE_BYOD is on but BYOD_IMAGE_PATH is empty, and the upload dialog exists only in Google Colab: copy the image into this runtime and set BYOD_IMAGE_PATH.') from None\n"
+                "            uploaded = files.upload()\n"
+                "            if len(uploaded) != 1:\n"
+                "                raise BYODRefusal(', '.join(sorted(uploaded)) or '(no file)', f'Upload exactly one image file (received {{len(uploaded)}} files; a cancelled dialog sends none). Run this cell again.')\n"
+                "            image_name = next(iter(uploaded))\n"
+                "            image = Image.open(io.BytesIO(uploaded[image_name]))\n"
+                "            image.load()\n"
+                "        prompts = [phrase.strip() for phrase in BYOD_PROMPTS.split(',') if phrase.strip()]\n"
+                "        # The Section 5 request contract, checked here so a BYOD problem stops at this cell.\n"
+                "        validate_inputs(image, prompts, threshold=threshold, names=[image_name], count_tokens=pipe.count_tokens)\n"
+                "    except BYODRefusal as exc:\n"
+                "        refuse_byod(exc.file_name, exc.reason)\n"
+                "    except (OSError, ValueError) as exc:\n"
+                "        refuse_byod(image_name, f'{{type(exc).__name__}}: {{exc}}')\n"
                 "    drawn_boxes = None\n"
                 "    sample_kind = 'BYOD'\n"
                 "else:\n"
@@ -357,7 +413,7 @@ TEMPLATE = {
         '- **"The isolated environment\'s Python process exited"** — usually out of memory; restart the session and choose **Run all**.\n'
         '- **Section 3 reports a size or SHA-256 mismatch, or cannot reach the Hub** — the message names the file. Delete the folder Section 3 prints as `weights_dir` and run Section 3 again.\n'
         '- **A shape is not detected** — that is a finding, not an error: read its `per_reference_best_box` row in Section 7 (a score miss or a localisation miss), then lower `threshold` (on photographs expect duplicate boxes) or rephrase the prompt (`a photo of a …`).\n'
-        '- **BYOD: "BYOD_IMAGE_PATH … does not exist" / "the upload dialog exists only in Google Colab" / "Upload exactly one image file"** — set `BYOD_IMAGE_PATH` to an image in the runtime (it works on Kaggle and Jupyter); on Colab an empty path opens the dialog, and a cancelled dialog stops with that message.\n'
+        '- **BYOD: "BYOD_IMAGE_PATH … does not exist" / "the upload dialog exists only in Google Colab" / "Upload exactly one image file"** — set `BYOD_IMAGE_PATH` to an image in the runtime (it works on Kaggle and Jupyter); on Colab an empty path opens the dialog, and a cancelled dialog stops with that message. Each shows as one `Refused: <file>: <reason>` line, with no traceback.\n'
         '- **A `ValueError` from `validate_inputs`** — it names the rule: a phrase longer than 48 characters or 16 CLIP tokens (the message gives the count; hyphens, digits and brackets cost extra tokens), more than 16 phrases, or an image side outside the ceilings.\n\n'
         '## Glossary\n\n'
         '- **Open-vocabulary detection** — detecting objects named by free-text phrases instead of a fixed class list.\n'
