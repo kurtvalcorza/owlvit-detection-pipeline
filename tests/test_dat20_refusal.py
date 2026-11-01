@@ -11,8 +11,10 @@ Two halves, both read from the generated notebook:
 # ruff: noqa: E501  -- refusal messages and parametrized cases read best on one line
 from __future__ import annotations
 
+import io
 import json
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -248,4 +250,58 @@ def test_scripted_refusal_input_is_the_real_etc_hostname(monkeypatch, tmp_path):
     monkeypatch.setitem(sys.modules, "google.colab", None)
     with pytest.raises(ValueError) as caught:
         _section4(monkeypatch, tmp_path, "/etc/hostname")
-    assert _refusal_line(caught.value).startswith("Refused: hostname: UnidentifiedImageError")
+    assert _refusal_line(caught.value).startswith("Refused: hostname: not an image file Pillow can open (UnidentifiedImageError: ")
+
+
+# --- the catch is narrow: only bad input is refused; an internal TypeError/OSError keeps its traceback -------------
+
+
+def test_the_byod_catch_is_narrow_in_the_notebook_source():
+    source = _cell(BYOD_CELL)
+    branch = source[source.index("if USE_BYOD:\n") : source.index("else:\n    # Deterministic synthetic scene")]
+    caught = re.findall(r"^\s*except (.+?)(?: as \w+)?:$", branch, flags=re.M)
+    assert caught == ["OSError", "ImportError", "OSError", "BYODRefusal", "ValueError"], caught
+    assert "            try:\n                image = Image.open(BYOD_IMAGE_PATH)\n                image.load()\n            except OSError as exc:\n" in branch
+    assert "            try:\n                image = Image.open(io.BytesIO(uploaded[image_name]))\n                image.load()\n            except OSError as exc:\n" in branch
+
+
+@pytest.mark.parametrize("upload", [False, True], ids=["path", "upload"])
+def test_a_truncated_image_is_still_one_refused_line(monkeypatch, tmp_path, upload):
+    buffer = io.BytesIO()
+    Image.new("RGB", (64, 48), (200, 30, 30)).save(buffer, format="PNG")
+    data = buffer.getvalue()[:-40]
+    (tmp_path / "cut.png").write_bytes(data)
+    if upload:
+        colab = types.ModuleType("google.colab")
+        colab.files = types.SimpleNamespace(upload=lambda: {"cut.png": data})
+        monkeypatch.setitem(sys.modules, "google.colab", colab)
+    else:
+        monkeypatch.setitem(sys.modules, "google.colab", None)
+    with pytest.raises(ValueError) as caught:
+        _section4(monkeypatch, tmp_path, "" if upload else str(tmp_path / "cut.png"))
+    line = _refusal_line(caught.value)
+    assert line.startswith("Refused: cut.png: not an image file Pillow can open ("), line
+    assert sorted(p.name for p in (tmp_path / "outputs").iterdir()) == []
+
+
+@pytest.mark.parametrize("error", [TypeError("internal helper bug"), OSError("internal I/O bug")], ids=["TypeError", "OSError"])
+def test_an_internal_error_in_the_byod_branch_keeps_its_traceback(monkeypatch, tmp_path, error):
+    import traceback
+
+    monkeypatch.setitem(sys.modules, "google.colab", None)
+    Image.new("RGB", (64, 48)).save(tmp_path / "ok.png")
+    monkeypatch.chdir(tmp_path)
+    _seed_outputs(tmp_path)
+    source = _cell(BYOD_CELL).replace("USE_BYOD = False", "USE_BYOD = True", 1).replace("BYOD_IMAGE_PATH = ''", f"BYOD_IMAGE_PATH = {str(tmp_path / 'ok.png')!r}", 1)
+    ns = _namespace()
+
+    def broken_count_tokens(text):
+        raise error
+
+    ns["pipe"] = types.SimpleNamespace(count_tokens=broken_count_tokens)
+    with pytest.raises(type(error)) as caught:
+        exec(compile(source, "<section 4>", "exec"), ns)
+    assert caught.value is error and not getattr(caught.value, "dimer_refusal", False)
+    rendered = "".join(traceback.format_exception(caught.value))
+    assert rendered.startswith("Traceback") and "broken_count_tokens" in rendered and "Refused:" not in rendered
+    assert (tmp_path / "outputs" / f"{STEM}_result.json").exists() and ns["result"] == "old"  # nothing is cleared
