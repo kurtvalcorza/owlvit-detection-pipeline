@@ -1,0 +1,69 @@
+{
+  "repo": "owlvit-detection-pipeline",
+  "sha": "515cf10a2fe7e13871c6fd64a4d75fea5014abdb",
+  "notebook": "tutorials/owlvit_detection_colab.ipynb",
+  "blob": "0d2b666cb78c537653ce63d6757b09996c991e40",
+  "gpu": "T4",
+  "session": "suite-owlvit-515cf10-6c28",
+  "started_utc": "2026-11-03T02:34:44+00:00",
+  "runner": "Colab CLI `colab exec -f` on a fresh session (not a browser Run all)",
+  "overrides": [
+    {
+      "name": "USE_BYOD",
+      "from": "False",
+      "to": "True"
+    },
+    {
+      "name": "BYOD_IMAGE_PATH",
+      "from": "''",
+      "to": "'/etc/hostname'"
+    }
+  ],
+  "run_copy_blob": "2cf6f5225f7695f9ae50232e5d9ff57a0f8271ba",
+  "run_copy_sha256": "220c8282adf10a646265005f4302e42e4f6661baff70c81548760c5739142310",
+  "run_copy_note": "refusal run: the run copy is the committed notebook with the listed assignment overrides, cut immediately after the refusal cell and re-serialised (nbformat layout); input_unchanged compares against that copy",
+  "truncated_after_cell": "owlvit_detection-12",
+  "refusal_cell_ref": "owlvit_detection-12",
+  "refusal_cell_index": 5,
+  "cells_dropped": 12,
+  "code_cells_dropped": 4,
+  "original_sha256": "cbb59e6656b8c2cf8405150f8dab7c7998a389a6abc2c22090dcd469b1c4ed20",
+  "status": "[suite-owlvit-515cf10-6c28] gpu-t4-s-usw1b3-2ycuie97ldr6u | Hardware: T4 | Shape: Standard | Variant: GPU | Status: IDLE",
+  "exec_exit_code": 0,
+  "stopped": true,
+  "stop_verified": true,
+  "wall_s": 106.7,
+  "input_unchanged": true,
+  "executed_file": "owlvit_detection_colab_515cf10_colab-cli-t4_output.ipynb",
+  "log_cells": [
+    1,
+    2,
+    3,
+    4,
+    5
+  ],
+  "log_total": 5,
+  "code_cells": 5,
+  "executed_cells": 4,
+  "errors": [
+    {
+      "cell": "owlvit_detection-12",
+      "ename": "IsolatedCellRefusal",
+      "evalue": "hostname: not an image file Pillow can open (UnidentifiedImageError: cannot identify image file '/etc/hostname'); use a PNG, JPEG or WebP file; fix the input and run this cell again (the earlier results of this session and their outputs/ files were removed)."
+    }
+  ],
+  "execution_counts": [],
+  "sequential": null,
+  "executed_sha256": "86104d2bcd8ff980e882e80c12c26d62fb648848513ba9c61d7646443fd17c0a",
+  "log_sequential_complete": true,
+  "mode": "expect_refusal",
+  "refusal_line": "Refused: hostname: not an image file Pillow can open (UnidentifiedImageError: cannot identify image file '/etc/hostname'); use a PNG, JPEG or WebP file; fix the input and run this cell again (the earlier results of this session and their outputs/ files were removed).",
+  "halting_cell_index": 5,
+  "halting_cell_id": "owlvit_detection-12",
+  "error_cells": [
+    5
+  ],
+  "refusal_fail_reasons": [],
+  "refusal_ok": true,
+  "verdict": "PASS"
+}
